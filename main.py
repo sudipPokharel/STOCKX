@@ -6,7 +6,14 @@ from tensorflow.keras.models import load_model
 import joblib
 import os
 import warnings
+import math
+import random
+import tensorflow as tf
 warnings.filterwarnings("ignore")  
+
+np.random.seed(42)
+random.seed(42)
+tf.random.set_seed(42)
 
 app = FastAPI(title="Stock Prediction API")
 
@@ -111,20 +118,39 @@ def predict_next(new_data: NewData):
 
     features = ['Open', 'High', 'Low', 'Close', 'Volume']
     last_seq = df[features].values[-win_size:]
+
+    # Fill NaNs if any
+    for i in range(len(last_seq)):
+        for j in range(len(features)):
+            if not np.isfinite(last_seq[i][j]):
+                last_seq[i][j] = df['Close'].iloc[-2] if i > 0 else 0
+
     last_seq_scaled = scaler_x[company].transform(last_seq)
     input_seq = last_seq_scaled.reshape(1, win_size, len(features))
+    print("Last sequence before scaling:", last_seq)
 
-    # LSTM prediction
-    lstm_scaled_pred = lstm_models[company].predict(input_seq)
-    lstm_pred = scaler_y[company].inverse_transform(lstm_scaled_pred)[0][0]
+    # LSTM prediction with error handling
+    try:
+        lstm_scaled_pred = lstm_models[company].predict(input_seq)
+        print(f"Scaled LSTM output: {lstm_scaled_pred}")
+
+        lstm_pred_array = scaler_y[company].inverse_transform(lstm_scaled_pred)
+        print(f"Inversed LSTM output: {lstm_pred_array}")
+
+        lstm_pred = lstm_pred_array[0][0]
+
+        if lstm_pred is None or not math.isfinite(lstm_pred):
+            raise ValueError(f"LSTM prediction is not finite: {lstm_pred}")
+
+    except Exception as e:
+        print(f"Error in LSTM prediction for {company}: {e}")
+        lstm_pred = None
 
     # ARIMA prediction
     arima_model = arima_models[company]
     try:
-        # Append new value to ARIMA without refitting
         arima_model = arima_model.append([new_data.Close], refit=False)
     except AttributeError:
-        # For older ARIMA versions
         arima_model = arima_model.extend([new_data.Close])
     arima_pred = arima_model.forecast(steps=1).iloc[0]
 
@@ -132,17 +158,12 @@ def predict_next(new_data: NewData):
     joblib.dump(arima_model, ARIMA_MODELS[company])
     arima_models[company] = arima_model
 
-    import math
-
-# Ensure predictions are finite numbers
+    # Ensure predictions are finite numbers
     lstm_pred_safe = lstm_pred if (lstm_pred is not None and math.isfinite(lstm_pred)) else None
-
     arima_pred_safe = arima_pred if (arima_pred is not None and math.isfinite(arima_pred)) else None
-
 
     return {
         "Company": company.upper(),
         "LSTM_Predicted_Close": float(lstm_pred_safe) if lstm_pred_safe is not None else None,
         "ARIMA_Predicted_Close": float(arima_pred_safe) if arima_pred_safe is not None else None,
-
     }
