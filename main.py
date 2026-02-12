@@ -106,6 +106,13 @@ def predict_next(new_data: NewData):
         'Close': new_data.Close,
         'Volume': new_data.Volume
     }
+    if new_row['Date'] in df['Date'].values:
+        df.loc[df['Date'] == new_row['Date'], ['Open','High','Low','Close','Volume']] = [
+            new_row['Open'], new_row['High'], new_row['Low'], new_row['Close'], new_row['Volume']
+        ]
+    else:
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.sort_values('Date', inplace=True)
     df.reset_index(drop=True, inplace=True)
@@ -154,11 +161,11 @@ def predict_next(new_data: NewData):
         arima_model = arima_model.extend([new_data.Close])
     arima_pred = arima_model.forecast(steps=1).iloc[0]
 
-    # Save updated ARIMA model
+   
     joblib.dump(arima_model, ARIMA_MODELS[company])
     arima_models[company] = arima_model
 
-    # Ensure predictions are finite numbers
+   
     lstm_pred_safe = lstm_pred if (lstm_pred is not None and math.isfinite(lstm_pred)) else None
     arima_pred_safe = arima_pred if (arima_pred is not None and math.isfinite(arima_pred)) else None
 
