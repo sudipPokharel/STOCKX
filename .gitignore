@@ -10,8 +10,7 @@ __pycache__/
 *.pyd
 
 # Model files (optional if large)
-*.h5
-*.pkl
+
 
 # macOS
 .DS_Store

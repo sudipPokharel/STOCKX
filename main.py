@@ -111,9 +111,9 @@ def predict_next(new_data: NewData):
             new_row['Open'], new_row['High'], new_row['Low'], new_row['Close'], new_row['Volume']
         ]
     else:
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+   
 
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+      df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.sort_values('Date', inplace=True)
     df.reset_index(drop=True, inplace=True)
     df.to_csv(DATA_PATH, index=False)
